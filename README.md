@@ -1,6 +1,6 @@
-# Tutorial: MicroBlaze with DDR3 RAM on Arty A7
+# Tutorial: MicroBlaze with DDR3 RAM on Nexys Video
 
-This tutorial describes how to do a HW design of [MicroBlaze Soft Processor](https://www.xilinx.com/products/design-tools/microblaze.html) using DDR3 RAM on the [Digilent Arty A7](https://digilent.com/reference/programmable-logic/arty-a7/start) FPGA development board in Vivado 2023.1 or Vivado 2024.1.
+This tutorial describes how to do a HW design of [MicroBlaze Soft Processor](https://www.xilinx.com/products/design-tools/microblaze.html) using DDR3 RAM on the [Digilent Nexys Video ](https://digilent.com/reference/programmable-logic/nexys-video/start) FPGA development board in Vivado 2023.1 (not tested) or Vivado 2024.1 (tested).
 
 The same steps and design should be applicable to any Digilent board with a 100 MHz crystal oscillator and a DDR interface, including [Nexys A7](https://digilent.com/shop/nexys-a7-fpga-trainer-board-recommended-for-ece-curriculum/), [Arty S7](https://digilent.com/shop/arty-s7-spartan-7-fpga-development-board/), [Nexys Video](https://digilent.com/shop/nexys-video-artix-7-fpga-trainer-board-for-multimedia-applications/) and [USB104 A7](https://digilent.com/shop/usb104-a7-artix-7-fpga-development-board-with-syzygy-compatible-expansion/).
 
@@ -16,7 +16,7 @@ Start Vivado 2023.1 or Vivado 2024.1. Click Create Project. Click Next.
 Enter the project name and directory. Click Next.  
 Select "RTL Project" and "Do not specify sources at this time". Click Next.
 
-Select Arty A7-100 or -35 board based on the board you are using. The steps in this tutorial are exactly the same for both models. By selecting the board, we will use the board file provided by Digilent.
+Select Nexys Video board based on the board you are using. By selecting the board, we will use the board file provided by Digilent.
 
 <img title="" src="pictures/select_board.png" alt="" width="475">
 
@@ -28,16 +28,16 @@ Click Create Block Design, and name the design "system":
 
 An empty block design window opens.
 
-The Arty A7 comes with a relatively well-prepared board file, which allows steps in the HW design to be automated in Vivado. However, as we will see later, some manual tweaks are still needed because the automation is not perfect.
+The Nexys Video comes with a relatively well-prepared board file, which allows steps in the HW design to be automated in Vivado. However, as we will see later, some manual tweaks are still needed because the automation is not perfect.
 
-Let's start with the most complicated part, the Memory Interface Generator (MIG). This is an IP provided by Xilinx, which will generate a memory controller for the DDR3 SDRAM installed on Arty A7.
+Let's start with the most complicated part, the Memory Interface Generator (MIG). This is an IP provided by Xilinx, which will generate a memory controller for the DDR3 SDRAM installed on Nexys Video.
 
-Open the Board window (Window|Board). There is an item "DDR3 SDRAM". Drag it to an empty space on the diagram design. Vivado does its magic and configures the MIG for the Arty A7 DDR3 memory based on settings in the board file. The following IP appears in the design:
+Open the Board window (Window|Board). There is an item "DDR3 SDRAM". Drag it to an empty space on the diagram design. Vivado does its magic and configures the MIG for the Nexys Video DDR3 memory based on settings in the board file. The following IP appears in the design:
 
 <img title="" src="pictures/mig_added.png" alt="" width="477">
 
 > [!TIP]
-> In case you are using a board other than Arty A7 and your board doesn't come with proper board files, you would need to drag the MIG to the block design from the IP Catalog and configure it manually based on the documentation available for your board.  
+> In case you are using a board other than Nexys Video and your board doesn't come with proper board files, you would need to drag the MIG to the block design from the IP Catalog and configure it manually based on the documentation available for your board.  
 > The rest of this tutorial is also valid for a MIG configured manually.
 
 Unfortunately, there are two problems with the MIG just created by the Vivado automation:
@@ -46,14 +46,14 @@ Unfortunately, there are two problems with the MIG just created by the Vivado au
 
 - The MIG requires the Reference Clock (clk_ref_i) to be 200 MHz. See [UG586](https://docs.amd.com/r/en-US/ug586_7Series_MIS/IDELAY-Reference-Clock?tocId=nJXWeiGvSLT1gJwwSLLFwg), page 105 in the PDF version.
 
-- The Vitis assumes that we have an input port that can clock clk_ref_i of the MIG. But that is not the case. Arty A7 has only one on-board oscillator, which provides a 100 MHz clock, not 200 MHz.
+- The Vitis assumes that we have an input port that can clock clk_ref_i of the MIG. But that is not the case. Nexys Video has only one on-board oscillator, which provides a 100 MHz clock, not 200 MHz.
 
 - We will solve this issue easily by adding a Clocking Wizard, which will generate the 200 MHz clock based on the 100 MHz clock from the on-board oscillator.
 
 #### 2. We can't connect the external system clock to MIG directly
 
 - I learned "the hard way" that if we leave the external 100 MHz port sys_clk_i connected directly to sys_clk_i of the MIG, we will later face an error during Implementation in case we use a pin from bank 35 in the design.
-- Pins of  Xilinx Artix-7 FPGAs are organized into banks. Banks are identified by numbers. In the [schematics of Arty A7](https://digilent.com/reference/_media/programmable-logic/arty-a7/arty-a7-e2-sch.pdf) we can see that pins connected to sockets on the Arty A7 belong to banks 14, 15 and 35. All pins in a given bank must work on the same voltage. In the case of the Arty A7, banks 14, 15 and 35 work on 3.3 V.
+- Pins of  Xilinx Artix-7 FPGAs are organized into banks. Banks are identified by numbers. In the [schematics of Nexys Video](https://digilent.com/reference/_media/reference/programmable-logic/nexys-video/nexys_video_sch.pdf) we can see that pins connected to sockets on the Arty A7 belong to banks 14, 15 and 35. All pins in a given bank must work on the same voltage. In the case of the Arty A7, banks 14, 15 and 35 work on 3.3 V.
 - The problem is that MIG expects sys_clk_i to be 2.5 V, but the external 100 MHz oscillator is connected to the Artix-7 pin named E3, which is in bank 35 and thus operates on 3.3 V (and the oscillator used in the circuit is actually a 3.3 V oscillator). Therefore Vitis raises the following error when I used a pin ck_a0 (also belonging to bank 35) in the design:
   - [DRC BIVC-1] Bank IO standard Vcc: Conflicting Vcc voltages in bank 35. For example, the following two ports in this bank have conflicting VCCOs:  
     sys_clk_i (LVCMOS25, requiring VCCO=2.500) and ck_a0[0] (LVCMOS33, requiring VCCO=3.300)
